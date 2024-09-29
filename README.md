@@ -44,3 +44,33 @@ To run this app locally, follow these steps:
    ```bash
    git clone https://github.com/your-username/outfit-inspiration-app.git
    cd outfit-inspiration-app
+   npm install
+   
+PEXELS_API_KEY=your-pexels-api-key
+OPENAI_API_KEY=your-openai-api-key
+
+Usage
+Outfit Inspiration: Open the app and navigate to the "Outfit Inspiration" tab. Browse through the list of outfits fetched from the Pexels API.
+Get AI Suggestions: Navigate to the "Outfit Suggestions" screen, type in a wardrobe description or occasion, and get personalized outfit recommendations.
+Plan Outfits: Use the "Calendar" screen to pick a date and plan what to wear in advance.
+
+API Integration
+Pexels API
+The app fetches outfit inspiration from Pexels using the /v1/search endpoint. For example:
+
+js
+Copy code
+axios.get('https://api.pexels.com/v1/search?query=outfit&per_page=10', {
+  headers: {
+    Authorization: API_KEY,
+  },
+});
+OpenAI API
+AI outfit suggestions are generated using OpenAI's GPT-3 model by passing a custom wardrobe description or occasion.
+
+License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+Contributing
+Contributions are welcome! Feel free to open a pull request or raise issues if you encounter any bugs or want to suggest features.
+
