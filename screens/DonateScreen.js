@@ -1,26 +1,74 @@
-import React, { useContext } from 'react';
-import { View, Text, Image, FlatList, StyleSheet } from 'react-native';
-import { DonationContext } from './DonationContext'; // Import your context
+import React, { useContext, useEffect, useState } from 'react';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
+import { DonationContext } from './DonationContext';
+import { db } from '../firebase'; // Import your Firestore instance
+import { collection, onSnapshot } from 'firebase/firestore'; // Import Firestore utilities
 
-const DonateScreen = () => {
-  const { donatedItems } = useContext(DonationContext); // Access donated items from context
+const DonateScreen = ({ navigation }) => {
+  const { allDonatedItems } = useContext(DonationContext);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [sortedItems, setSortedItems] = useState([]);
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      {item.image && <Image source={{ uri: item.image }} style={styles.image} />}
-      <Text style={styles.itemText}>Name: {item.name}</Text>
-      <Text style={styles.itemText}>Category: {item.category}</Text>
-    </View>
-  );
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, 'donations'), // Listening to 'donations' collection
+      (snapshot) => {
+        const updatedDonatedItems = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setSortedItems(updatedDonatedItems);
+        setLoading(false);
+      },
+      (error) => {
+        setError('Failed to load donated items.');
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe(); // Clean up the listener when the component unmounts
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Donated Items</Text>
-      <FlatList
-        data={donatedItems}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-      />
+      <Text style={styles.title}>All Donated Items</Text>
+
+      {sortedItems.length === 0 ? (
+        <Text style={styles.emptyText}>No donated items available.</Text>
+      ) : (
+        <FlatList
+          data={sortedItems}
+          renderItem={({ item }) => (
+            <TouchableOpacity 
+              style={styles.card} 
+              onPress={() => navigation.navigate('ItemDetails', { item })} 
+            >
+              <Text style={styles.itemName}>{item.name}</Text>
+              <Text style={styles.itemCategory}>Category: {item.category}</Text>
+              {/* Display any other relevant data */}
+              <Text style={styles.itemDonor}>Donated By: {item.donatedBy}</Text>
+            </TouchableOpacity>
+          )}
+          keyExtractor={item => item.id}
+        />
+      )}
     </View>
   );
 };
@@ -42,13 +90,33 @@ const styles = StyleSheet.create({
     borderColor: 'lightgray',
     borderRadius: 5,
   },
-  image: {
-    width: 100,
-    height: 100,
-    marginBottom: 10,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  itemText: {
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 18,
+    color: 'gray',
+  },
+  itemName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  itemCategory: {
     fontSize: 16,
+    color: 'gray',
+  },
+  itemDonor: {
+    fontSize: 14,
+    color: 'darkgray',
   },
 });
 

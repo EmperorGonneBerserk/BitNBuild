@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, Button, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Image, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
 
 const API_KEY = '8B0IXwgKdjy6o6ilo30TamyvB9KVXy5jcqsTDwiS2MdlKajvNImVIg6J';
-const API_URL = 'https://api.pexels.com/v1/search?query=outfit&per_page=15&page=';
+const API_URL = 'https://api.pexels.com/v1/search?query=';
 
 const OutfitInspiration = () => {
   const [images, setImages] = useState([]);
@@ -13,7 +13,8 @@ const OutfitInspiration = () => {
   const fetchImages = async (pageNumber) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}${pageNumber}`, {
+      // Correctly use template literals for the URL
+      const response = await fetch(`${API_URL}${category}&per_page=15&page=${pageNumber}`, {
         headers: {
           Authorization: API_KEY,
         },
@@ -21,6 +22,8 @@ const OutfitInspiration = () => {
       const data = await response.json();
       if (data.photos) {
         setImages(data.photos);
+      } else {
+        console.warn('No photos found');
       }
     } catch (error) {
       console.error('Error fetching images:', error);
@@ -31,7 +34,7 @@ const OutfitInspiration = () => {
 
   useEffect(() => {
     fetchImages(page);
-  }, [page]);
+  }, [page, category]);
 
   const handleRefresh = () => {
     setPage((prevPage) => prevPage + 1); // Increment page to fetch new images
@@ -41,26 +44,33 @@ const OutfitInspiration = () => {
     setCategory(selectedCategory);
     // Reset to the first page for new category
     setPage(1);
-    // Fetch new images based on category (if API supports category filtering)
-    fetchImages(1); // You might need to adjust this if API supports category filtering
+    fetchImages(1); // Fetch new images based on category
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.description}>
-        Let's help users discover new ways to style their existing clothes! 
-        Explore trending fashion styles and seasonal must-haves.
-      </Text>
+      {/* Header Section */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerText}>Hey, Ravi!</Text>
+        <TouchableOpacity style={styles.notificationIcon}>
+          {/* Notification icon can go here */}
+        </TouchableOpacity>
+      </View>
 
-      {/* Categories Section */}
+      {/* Buttons Section */} 
       <View style={styles.categoryContainer}>
-        <Text style={styles.categoryTitle}>Browse Categories:</Text>
-        <View style={styles.categories}>
-          <Button title="Casual" onPress={() => handleCategoryChange('casual')} color="#007bff" />
-          <Button title="Formal" onPress={() => handleCategoryChange('formal')} color="#007bff" />
-          <Button title="Sporty" onPress={() => handleCategoryChange('sporty')} color="#007bff" />
-          <Button title="Party" onPress={() => handleCategoryChange('party')} color="#007bff" />
-        </View>
+        <TouchableOpacity style={[styles.button, styles.uploadButton]} onPress={() => handleCategoryChange('casual fashion')}>
+          <Text style={styles.buttonText}>Casual outfits</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, styles.createButton]} onPress={() => handleCategoryChange('formal fashion')}>
+          <Text style={styles.buttonText}>Formal outfits</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, styles.scheduleButton]} onPress={() => handleCategoryChange('sport fashion')}>
+          <Text style={styles.buttonText}>Sport outfits</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, styles.statsButton]} onPress={() => handleCategoryChange('party fashion')}>
+          <Text style={styles.buttonText}>Party Outfits</Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -72,7 +82,9 @@ const OutfitInspiration = () => {
               <Image source={{ uri: image.src.large }} style={styles.image} />
             </View>
           ))}
-          <Button title="Refresh Images" onPress={handleRefresh} color="#007bff" />
+          <TouchableOpacity style={styles.neonButton} onPress={handleRefresh}>
+            <Text style={styles.buttonText}>Refresh Images</Text>
+          </TouchableOpacity>
         </ScrollView>
       )}
     </View>
@@ -82,36 +94,60 @@ const OutfitInspiration = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     padding: 20,
+    backgroundColor: '#f8f9fa',
   },
-  description: {
-    fontSize: 16,
-    color: '#333',
-    textAlign: 'center',
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 20,
+  },
+  profileImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  headerText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginLeft: 10,
+  },
+  notificationText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   categoryContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 20,
+  },
+  button: {
+    width: '23%',
     padding: 10,
     borderRadius: 10,
-    backgroundColor: '#f8f9fa',
-    width: '100%',
     alignItems: 'center',
   },
-  categoryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
+  uploadButton: {
+    backgroundColor: '#00ccff',
   },
-  categories: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
+  createButton: {
+    backgroundColor: '#d19fe8',
+  },
+  scheduleButton: {
+    backgroundColor: '#bfd939',
+  },
+  statsButton: {
+    backgroundColor: '#ff914d',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   scrollContainer: {
     padding: 20,
+    backgroundColor: '#fff',
   },
   imageContainer: {
     marginBottom: 15,
@@ -123,6 +159,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 10,
+  },
+  neonButton: {
+    backgroundColor: '#bfd939',
+    borderRadius: 25,
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    elevation: 5,
+    shadowColor: '#333',
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    marginTop: 20,
   },
 });
 

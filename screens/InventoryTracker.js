@@ -1,30 +1,51 @@
-import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Image, FlatList } from 'react-native';
+import React, { useState, useContext, useEffect } from 'react';
+import { View, Text, TextInput, Button, StyleSheet, Image, FlatList, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Card } from 'react-native-paper';
-import { DonationContext } from './DonationContext'; // Import the context
+import { DonationContext } from './DonationContext';
+import { db, auth } from '../firebase'; // Import Firebase and auth instance
+import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'; // Firestore functions
 
 const InventoryTracker = ({ navigation }) => {
   const [itemName, setItemName] = useState('');
   const [itemCategory, setItemCategory] = useState('');
   const [itemImage, setItemImage] = useState('');
-  const { setDonatedItems } = useContext(DonationContext); // Use context
-  const [inventory, setInventory] = useState([]); // Initialize inventory
+  const { setDonatedItems, setAllDonatedItems } = useContext(DonationContext);
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(false); // Loading state
+
+  useEffect(() => {
+    fetchInventory(); // Fetch inventory from Firestore when component mounts
+  }, []);
+
+  const fetchInventory = async () => {
+    setLoading(true);
+    try {
+      const inventoryCollection = collection(db, 'inventory');
+      const q = query(inventoryCollection, where('addedBy', '==', auth.currentUser.uid)); // Fetch only items added by the current user
+      const inventorySnapshot = await getDocs(q);
+      const inventoryList = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setInventory(inventoryList);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to fetch inventory.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      alert('Permission to access camera roll is required!');
+    if (!permissionResult.granted) {
+      Alert.alert('Permission required', 'Permission to access camera roll is required!');
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync();
-
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selectedImage = result.assets[0]; 
-      setItemImage(selectedImage.uri); 
+      const selectedImage = result.assets[0];
+      setItemImage(selectedImage.uri);
     } else {
-      alert('Image selection was canceled or no images were picked.');
+      Alert.alert('Image selection', 'Image selection was canceled or no images were picked.');
     }
   };
 
@@ -32,15 +53,27 @@ const InventoryTracker = ({ navigation }) => {
     setItemImage(null);
   };
 
-  const addItem = () => {
+  const addItem = async () => {
     if (!itemName || !itemCategory) {
-      alert('Please enter both item name and category.');
+      Alert.alert('Validation', 'Please enter both item name and category.');
       return;
     }
 
-    const newItem = { id: Math.random().toString(), name: itemName, category: itemCategory, image: itemImage };
-    setInventory(currentInventory => [...currentInventory, newItem]);
-    resetForm();
+    const newItem = {
+      name: itemName,
+      category: itemCategory,
+      image: itemImage,
+      addedBy: auth.currentUser.uid, // Add the user's ID to the item data
+    };
+
+    try {
+      const docRef = await addDoc(collection(db, 'inventory'), newItem); // Add to Firestore
+      setInventory(currentInventory => [...currentInventory, { id: docRef.id, ...newItem }]);
+      resetForm();
+      Alert.alert('Success', 'Item added to inventory successfully!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add item to inventory.');
+    }
   };
 
   const resetForm = () => {
@@ -53,12 +86,27 @@ const InventoryTracker = ({ navigation }) => {
     setInventory(currentInventory => currentInventory.filter(item => item.id !== id));
   };
 
-  const donateItem = (item) => {
-    setDonatedItems(prevItems => {
-      return [...prevItems, item]; // Add item to donated items
-    });
-    removeItem(item.id); // Remove from inventory after donation
-    navigation.navigate('Donate'); // Just navigate to Donate without passing donated items
+  const donateItem = async (item) => {
+    try {
+      const donationItem = {
+        ...item,
+        donatedBy: auth.currentUser.uid, // Track who donated the item
+        visibleTo: 'all', // Mark the item as visible to all users
+      };
+
+      // Add the donated item to the 'donations' collection
+      await addDoc(collection(db, 'donations'), donationItem);
+
+      // Remove the item from the user's inventory
+      removeItem(item.id);
+      setDonatedItems(prevItems => [...prevItems, item]);
+      setAllDonatedItems(prevItems => [...prevItems, item]);
+
+      Alert.alert('Success', 'Item donated successfully!');
+      navigation.navigate('Donate');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to donate item.');
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -74,6 +122,14 @@ const InventoryTracker = ({ navigation }) => {
       </Card.Content>
     </Card>
   );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -150,6 +206,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginVertical: 10,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

@@ -24,7 +24,8 @@ const LoginScreen = ({ navigation }) => {
       try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         console.log('Logged in with:', userCredential.user.email);
-        navigation.navigate('Home');
+        // Navigate to Drawer instead of Home
+        navigation.navigate('Drawer');
       } catch (error) {
         console.error('Login error:', error);
         setErrorMessage(error.message);
