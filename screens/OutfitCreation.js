@@ -2,14 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
-const OutfitCreationScreen = ({ route }) => {
-  const { date } = route.params || { date: 'No date provided' }; // Default value
+const OutfitCreationScreen = ({ route, navigation }) => {
+  const { date } = route.params || { date: 'No date provided' }; // Get date from route params
   const [outfitDescription, setOutfitDescription] = useState('');
   const [outfitType, setOutfitType] = useState('Upper Wear'); // Default type
   const [image, setImage] = useState(null);
 
   const handleCreateOutfit = () => {
-    // Handle outfit creation logic here
     if (!outfitDescription || !image) {
       Alert.alert('Error', 'Please provide an outfit description and an image.');
       return;
@@ -17,16 +16,16 @@ const OutfitCreationScreen = ({ route }) => {
     console.log('Outfit created for:', date);
     console.log('Outfit description:', outfitDescription);
     console.log('Outfit type:', outfitType);
-    // You can also navigate back or show a success message
+    navigation.goBack(); // Navigate back after saving
   };
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permissionResult.granted === false) {
-      alert("Permission to access camera roll is required!");
+      Alert.alert("Permission to access camera roll is required!");
       return;
     }
-    
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,

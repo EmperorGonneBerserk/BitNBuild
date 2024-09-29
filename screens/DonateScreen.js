@@ -1,122 +1,59 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
-import { DonationContext } from './DonationContext';
-import { db } from '../firebase'; // Import your Firestore instance
-import { collection, onSnapshot } from 'firebase/firestore'; // Import Firestore utilities
+import React, { useContext } from 'react';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { DonateContext } from './DonationContext'; // Adjust path as necessary
 
-const DonateScreen = ({ navigation }) => {
-  const { allDonatedItems } = useContext(DonationContext);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [sortedItems, setSortedItems] = useState([]);
+const DonateScreen = () => {
+  const { donatedItems } = useContext(DonateContext); // Ensure you're getting donated items
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, 'donations'), // Listening to 'donations' collection
-      (snapshot) => {
-        const updatedDonatedItems = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setSortedItems(updatedDonatedItems);
-        setLoading(false);
-      },
-      (error) => {
-        setError('Failed to load donated items.');
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe(); // Clean up the listener when the component unmounts
-  }, []);
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
+  const renderItem = ({ item }) => (
+    <View style={styles.itemContainer}>
+      <Text style={styles.itemName}>Name: {item.name}</Text>
+      <Text>Category: {item.category}</Text>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>All Donated Items</Text>
-
-      {sortedItems.length === 0 ? (
-        <Text style={styles.emptyText}>No donated items available.</Text>
-      ) : (
+      <Text style={styles.title}>Donated Items</Text>
+      {donatedItems.length > 0 ? (
         <FlatList
-          data={sortedItems}
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={styles.card} 
-              onPress={() => navigation.navigate('ItemDetails', { item })} 
-            >
-              <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemCategory}>Category: {item.category}</Text>
-              {/* Display any other relevant data */}
-              <Text style={styles.itemDonor}>Donated By: {item.donatedBy}</Text>
-            </TouchableOpacity>
-          )}
-          keyExtractor={item => item.id}
+          data={donatedItems}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id} // Ensure unique keys
         />
+      ) : (
+        <Text style={styles.noItemsText}>No items donated yet.</Text>
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  // Similar styles as LendScreen for consistency
   container: {
     flex: 1,
     padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginVertical: 20,
+    marginBottom: 20,
   },
-  card: {
-    marginVertical: 10,
+  itemContainer: {
     padding: 10,
-    borderWidth: 1,
-    borderColor: 'lightgray',
-    borderRadius: 5,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    color: 'red',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  emptyText: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 18,
-    color: 'gray',
+    borderBottomWidth: 1,
+    borderColor: '#ccc',
+    width: '100%',
   },
   itemName: {
     fontSize: 18,
     fontWeight: 'bold',
   },
-  itemCategory: {
+  noItemsText: {
     fontSize: 16,
     color: 'gray',
-  },
-  itemDonor: {
-    fontSize: 14,
-    color: 'darkgray',
   },
 });
 

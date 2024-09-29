@@ -3,16 +3,20 @@ import { View, Text, TextInput, Button, StyleSheet, Image, FlatList, Alert } fro
 import * as ImagePicker from 'expo-image-picker';
 import { Card } from 'react-native-paper';
 import { DonationContext } from './DonationContext';
-import { db, auth } from '../firebase'; // Import Firebase and auth instance
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'; // Firestore functions
+import { LendContext } from './LendContext';
+import { TradeContext } from './TradeContext'; // Import trade context
+import { db, auth } from '../firebase';
+import { collection, addDoc, getDocs, query, where, updateDoc, doc } from 'firebase/firestore';
 
-const InventoryTracker = ({ navigation }) => {
+const InventoryTracker = () => {
   const [itemName, setItemName] = useState('');
   const [itemCategory, setItemCategory] = useState('');
-  const [itemImage, setItemImage] = useState('');
-  const { setDonatedItems, setAllDonatedItems } = useContext(DonationContext);
+  const [itemImage, setItemImage] = useState(null);
+  const { setDonatedItems } = useContext(DonationContext);
+  const { setLentItems } = useContext(LendContext);
+  const { setTradedItems } = useContext(TradeContext); // Access trade items
   const [inventory, setInventory] = useState([]);
-  const [loading, setLoading] = useState(false); // Loading state
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchInventory(); // Fetch inventory from Firestore when component mounts
@@ -22,7 +26,7 @@ const InventoryTracker = ({ navigation }) => {
     setLoading(true);
     try {
       const inventoryCollection = collection(db, 'inventory');
-      const q = query(inventoryCollection, where('addedBy', '==', auth.currentUser.uid)); // Fetch only items added by the current user
+      const q = query(inventoryCollection, where('addedBy', '==', auth.currentUser.uid)); 
       const inventorySnapshot = await getDocs(q);
       const inventoryList = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setInventory(inventoryList);
@@ -33,80 +37,71 @@ const InventoryTracker = ({ navigation }) => {
     }
   };
 
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert('Permission required', 'Permission to access camera roll is required!');
+  const addItemToInventory = async () => {
+    if (!itemName || !itemCategory || !itemImage) {
+      Alert.alert('Error', 'Please fill in all fields and select an image.');
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync();
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selectedImage = result.assets[0];
-      setItemImage(selectedImage.uri);
-    } else {
-      Alert.alert('Image selection', 'Image selection was canceled or no images were picked.');
-    }
-  };
-
-  const removeImage = () => {
-    setItemImage(null);
-  };
-
-  const addItem = async () => {
-    if (!itemName || !itemCategory) {
-      Alert.alert('Validation', 'Please enter both item name and category.');
-      return;
-    }
-
-    const newItem = {
-      name: itemName,
-      category: itemCategory,
-      image: itemImage,
-      addedBy: auth.currentUser.uid, // Add the user's ID to the item data
-    };
-
     try {
-      const docRef = await addDoc(collection(db, 'inventory'), newItem); // Add to Firestore
-      setInventory(currentInventory => [...currentInventory, { id: docRef.id, ...newItem }]);
-      resetForm();
-      Alert.alert('Success', 'Item added to inventory successfully!');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add item to inventory.');
-    }
-  };
-
-  const resetForm = () => {
-    setItemName('');
-    setItemCategory('');
-    setItemImage(null);
-  };
-
-  const removeItem = (id) => {
-    setInventory(currentInventory => currentInventory.filter(item => item.id !== id));
-  };
-
-  const donateItem = async (item) => {
-    try {
-      const donationItem = {
-        ...item,
-        donatedBy: auth.currentUser.uid, // Track who donated the item
-        visibleTo: 'all', // Mark the item as visible to all users
+      const newItem = {
+        name: itemName,
+        category: itemCategory,
+        image: itemImage,
+        status: 'available', // Default status
+        type: '', // This will be set later when the user chooses to lend, donate, or trade
+        addedBy: auth.currentUser.uid,
+        addedAt: new Date(),
       };
-
-      // Add the donated item to the 'donations' collection
-      await addDoc(collection(db, 'donations'), donationItem);
-
-      // Remove the item from the user's inventory
-      removeItem(item.id);
-      setDonatedItems(prevItems => [...prevItems, item]);
-      setAllDonatedItems(prevItems => [...prevItems, item]);
-
-      Alert.alert('Success', 'Item donated successfully!');
-      navigation.navigate('Donate');
+      const docRef = await addDoc(collection(db, 'inventory'), newItem);
+      setInventory([...inventory, { id: docRef.id, ...newItem }]);
+      setItemName('');
+      setItemCategory('');
+      setItemImage(null);
+      Alert.alert('Success', 'Item added to inventory.');
     } catch (error) {
-      Alert.alert('Error', 'Failed to donate item.');
+      Alert.alert('Error', 'Failed to add item.');
     }
+  };
+
+  const selectImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setItemImage(result.assets[0].uri);
+    }
+  };
+
+  // Function to mark the item as lent
+  const lendItem = async (item) => {
+    await updateDoc(doc(db, 'inventory', item.id), { status: 'lent', type: 'lend' });
+    setLentItems(prevItems => [...prevItems, { ...item, status: 'lent', type: 'lend' }]);
+    removeItem(item.id); // Remove from the current user's local list
+    Alert.alert('Success', `${item.name} has been lent!`);
+  };
+
+  // Function to mark the item as donated
+  const donateItem = async (item) => {
+    await updateDoc(doc(db, 'inventory', item.id), { status: 'donated', type: 'donate' });
+    setDonatedItems(prevItems => [...prevItems, { ...item, status: 'donated', type: 'donate' }]);
+    removeItem(item.id);
+    Alert.alert('Success', `${item.name} has been donated!`);
+  };
+
+  // Function to mark the item as traded
+  const tradeItem = async (item) => {
+    await updateDoc(doc(db, 'inventory', item.id), { status: 'traded', type: 'trade' });
+    setTradedItems(prevItems => [...prevItems, { ...item, status: 'traded', type: 'trade' }]);
+    removeItem(item.id);
+    Alert.alert('Success', `${item.name} has been traded!`);
+  };
+
+  const removeItem = (itemId) => {
+    setInventory(prevItems => prevItems.filter(item => item.id !== itemId));
   };
 
   const renderItem = ({ item }) => (
@@ -116,7 +111,9 @@ const InventoryTracker = ({ navigation }) => {
         <Text style={styles.itemText}>Name: {item.name}</Text>
         <Text style={styles.itemText}>Category: {item.category}</Text>
         <View style={styles.buttonContainer}>
+          <Button title="Lend" onPress={() => lendItem(item)} />
           <Button title="Donate" onPress={() => donateItem(item)} />
+          <Button title="Trade" onPress={() => tradeItem(item)} />
         </View>
         <Button title="Remove" onPress={() => removeItem(item.id)} color="red" />
       </Card.Content>
@@ -133,28 +130,27 @@ const InventoryTracker = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Add Item to Inventory</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Item Name"
-        value={itemName}
-        onChangeText={setItemName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Category"
-        value={itemCategory}
-        onChangeText={setItemCategory}
-      />
-      <Button title="Pick an image from camera roll" onPress={pickImage} />
-      {itemImage && (
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: itemImage }} style={styles.image} />
-          <Button title="Remove Image" onPress={removeImage} color="red" />
-        </View>
-      )}
-      <Button title="Add Item" onPress={addItem} />
       <Text style={styles.title}>Your Inventory</Text>
+      
+      {/* Form for adding a new item */}
+      <View style={styles.form}>
+        <TextInput
+          placeholder="Item Name"
+          value={itemName}
+          onChangeText={setItemName}
+          style={styles.input}
+        />
+        <TextInput
+          placeholder="Category"
+          value={itemCategory}
+          onChangeText={setItemCategory}
+          style={styles.input}
+        />
+        <Button title="Select Image" onPress={selectImage} />
+        {itemImage && <Image source={{ uri: itemImage }} style={styles.imagePreview} />}
+        <Button title="Add Item" onPress={addItemToInventory} />
+      </View>
+
       <FlatList
         data={inventory}
         renderItem={renderItem}
@@ -169,43 +165,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    justifyContent: 'flex-start',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginVertical: 20,
+    marginBottom: 20,
+  },
+  form: {
+    marginBottom: 20,
   },
   input: {
-    height: 40,
-    borderColor: 'gray',
     borderWidth: 1,
-    marginBottom: 15,
-    paddingLeft: 10,
+    borderColor: '#ccc',
+    padding: 10,
+    marginBottom: 10,
+    borderRadius: 5,
   },
-  imageContainer: {
-    alignItems: 'center',
-    marginVertical: 15,
+  imagePreview: {
+    width: 100,
+    height: 100,
+    marginBottom: 10,
+  },
+  card: {
+    marginBottom: 10,
   },
   image: {
     width: 100,
     height: 100,
     marginBottom: 10,
   },
-  card: {
-    marginVertical: 10,
-    padding: 10,
-  },
   itemText: {
     fontSize: 16,
-  },
-  list: {
-    marginTop: 20,
+    marginBottom: 5,
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 10,
+    marginTop: 10,
   },
   loadingContainer: {
     flex: 1,
